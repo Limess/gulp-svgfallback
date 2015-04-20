@@ -5,6 +5,8 @@ var _ = require('lodash')
 var phridge = require('phridge')
 var fs = require('fs')
 var when = require('when')
+var cheerio = require('cheerio')
+var Backpacking = require('backpacking')
 
 var SPRITE_TEMPLATE = path.join(__dirname, 'templates', 'sprite.html')
 
@@ -41,31 +43,66 @@ module.exports = function (options) {
         return cb(new gutil.PluginError('gulp-svgfallback', 'File name should be unique: ' + name))
       }
 
-      svgs[name] = file.contents.toString()
+      if (!file.cheerio) {
+        file.cheerio = cheerio.load(file.contents.toString(), { xmlMode: true })
+      }
+
+      svgs[name] = {
+        contents: file.contents.toString()
+      , width: parseInt(file.cheerio('svg').attr('width'), 10)
+      , height: parseInt(file.cheerio('svg').attr('height'), 10)
+      }
+
       cb()
     }
 
   , function flush (cb) {
 
-      var self = this
-
       if (Object.keys(svgs).length === 0) return cb()
 
-      renderTemplate(SPRITE_TEMPLATE, {icons: svgs})
+      var self = this
+      var height = _.reduce(svgs, function (total, svg) {
+        return svg.height + total
+      }, 0)
+      var backpacking = new Backpacking(opts.spriteWidth, height)
+      var icons = _.map(svgs, function (svg, name) {
+        return { id: name
+               , width: svg.width
+               , height: svg.height
+               }
+      })
+      icons = backpacking.pack(icons)
+      icons = _.map(icons, function (icon) {
+        return { contents: svgs[icon.box.id].contents
+               , name: icon.box.id
+               , width: icon.box.width
+               , height: icon.box.height
+               , left: icon.x
+               , top: icon.y
+               }
+      })
+
+      var clipRect = {
+        left: 0
+      , top: 0
+      , right: Math.max.apply(Math, _.map(icons, function (i) { return i.left + i.width }))
+      , bottom: Math.max.apply(Math, _.map(icons, function (i) { return i.top + i.height }))
+      }
+
+      renderTemplate(SPRITE_TEMPLATE, {icons: icons})
         .then(function (html) {
-          return { html: html, spriteWidth: opts.spriteWidth }
+          return generateSprite({ content: html, clipRect: clipRect })
         })
-        .then(generateSprite)
         .then(function (sprite) {
 
           self.push(new gutil.File({
             path: fileName + '.png'
-          , contents: new Buffer(sprite.img, 'base64')
+          , contents: new Buffer(sprite, 'base64')
           }))
 
           return renderTemplate(opts.cssTemplate, {
             backgroundUrl: opts.backgroundUrl || fileName + '.png'
-          , icons: sprite.icons
+          , icons: icons
           })
 
         })
@@ -112,23 +149,8 @@ function generateSprite (opts) {
 
 function phantomScript (opts, resolve) {
   var page = webpage.create()  // jshint ignore: line
-  var icons
-  page.viewportSize = { width: opts.spriteWidth, height: 1 }
-  page.content = opts.html
-  page.clipRect = page.evaluate(function () {
-    return document.querySelector('.icons').getBoundingClientRect()
-  })
-  icons = page.evaluate(function () {
-    var all = document.querySelectorAll('.icon')
-    return [].map.call(all, function (el) {
-      var rect = el.getBoundingClientRect()
-      return { name: el.getAttribute('data-name')
-             , width: rect.width
-             , height: rect.height
-             , left: rect.left
-             , top: rect.top
-             }
-    })
-  })
-  resolve({ img: page.renderBase64('PNG'), icons: icons })
+  page.viewportSize = { width: opts.clipRect.right, height: 1 }
+  page.content = opts.content
+  page.clipRect = opts.clipRect
+  resolve(page.renderBase64('PNG'))
 }

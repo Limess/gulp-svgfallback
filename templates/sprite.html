@@ -5,20 +5,20 @@
     body {
       margin: 0;
     }
-    .icons,
-    .icon,
-    svg {
-      float: left;
+    .icon {
+      position: absolute
     }
     </style>
 </head>
 <body>
-    <div class="icons">
-        <% _.each(icons, function (icon, name) { %>
-            <div class="icon" data-name="<%- name %>">
-                <%= icon %>
-            </div>
-        <% }) %>
-    </div>
+    <% _.each(icons, function (icon) { %>
+        <div
+            class="icon"
+            data-name="<%- icon.id %>"
+            style="left: <%- icon.left %>px; top: <%- icon.top %>px;"
+        >
+            <%= icon.contents %>
+        </div>
+    <% }) %>
 </body>
 </html>

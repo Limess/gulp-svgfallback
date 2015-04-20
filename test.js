@@ -95,8 +95,8 @@ describe('gulp-svgfallback', function () {
         done()
       })
 
-      stream.write(new gutil.File({ contents: new Buffer('<svg></svg>'), path: 'circle.svg' }))
-      stream.write(new gutil.File({ contents: new Buffer('<svg></svg>'), path: 'circle.svg' }))
+      stream.write(new gutil.File({ contents: new Buffer(CIRCLE), path: 'circle.svg' }))
+      stream.write(new gutil.File({ contents: new Buffer(CIRCLE), path: 'circle.svg' }))
 
       stream.end()
 
@@ -202,15 +202,18 @@ describe('gulp-svgfallback', function () {
 
       // first call for sprite template
       assert.deepEqual(spy.getCall(0).args[1], {
-        icons: {circle: CIRCLE, square: SQUARE }
+        icons: [
+          { name: 'circle', contents: CIRCLE, width: 40, height: 40, left: 0, top: 0 }
+        , { name: 'square', contents: SQUARE, width: 40, height: 40, left: 40, top: 0 }
+        ]
       })
 
       // second call for css template
       assert.deepEqual(spy.getCall(1).args[1], {
         backgroundUrl: 'svgfallback.png'
       , icons: [
-          { name: 'circle', width: 40, height: 40, left: 0, top: 0 }
-        , { name: 'square', width: 40, height: 40, left: 40, top: 0 }
+          { name: 'circle', contents: CIRCLE, width: 40, height: 40, left: 0, top: 0 }
+        , { name: 'square', contents: SQUARE, width: 40, height: 40, left: 40, top: 0 }
         ]
       })
 
